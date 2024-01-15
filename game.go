@@ -385,7 +385,7 @@ func (e *ScoreBoardEntity) Tick(g *Game, d GameDelta) {
 func (e *ScoreBoardEntity) Draw() (int, int, GameSprite) {
 	game := GetGame()
 	score := game.globals["score"].IntValue
-	livesLeft := game.globals["score"].IntValue
+	livesLeft := game.globals["lives_left"].IntValue
 
 	e.sprite = [][]rune{
 		[]rune(strings.Repeat("#", game.frameBuffer.width)),
