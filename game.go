@@ -344,7 +344,7 @@ func (e *EnemyEntity) Tick(g *Game, d GameDelta) {
 	e.counter += 1
 	if e.counter < 10 { return }
 
-	if rand.Intn(2) == 1 {
+	if rand.Intn(20) == 1 {
 		g.AddEntity(
 			NewEnemyProjectileEntity(
 				e.coords.Y + len(e.sprite) + 1,
