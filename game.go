@@ -3,12 +3,21 @@ package main
 import (
 	"fmt"
 	"strings"
+	"math/rand"
 )
 
 
 /////////////////////////////////////////////////
 // STRUCTS
 type GameDelta float32
+type GameEntityType int
+
+const (
+	GUI GameEntityType = iota
+	PLAYER
+	ENEMY
+	PROJECTILE
+)
 
 type GameVariable struct {
 	Type 		string
@@ -33,6 +42,7 @@ type GameEntityFields struct {
 type GameEntity interface {
 	Tick(*Game, GameDelta)
 	Draw() (int, int, GameSprite)
+	GetType() GameEntityType
 	GetCoords() GameEntityCoordinates
 	GetHitBox() GameEntityHitBox
 }
@@ -176,9 +186,11 @@ func InitGame(inputHandler GameInputHandler) *Game {
 	game.AddEntity(
 		NewEnemyEntity(0,14),
 	)
-	game.AddEntity(
-		NewEnemyEntity(0,21),
-	)
+	for i := range [10]byte{} {
+		game.AddEntity(
+			NewEnemyEntity(0,i * 7),
+		)
+	}
 
 	return &game
 }
@@ -220,6 +232,7 @@ func (e *PlayerEntity) Tick(g *Game, d GameDelta) {
 func (e *PlayerEntity) Draw() (int, int, GameSprite) {
 	return e.coords.Y, e.coords.X, e.sprite
 }
+func (e *PlayerEntity) GetType() GameEntityType {return PLAYER}
 func (e *PlayerEntity) GetCoords() GameEntityCoordinates {return e.coords}
 func (e *PlayerEntity) GetHitBox() GameEntityHitBox {
 	return GameEntityHitBox{
@@ -283,7 +296,7 @@ func (e *ProjectileEntity) Tick(g *Game, d GameDelta) {
 	e.coords.Y -= 1
 	
 	for index, entity := range g.entities {
-		if IsCollide(e, entity) {
+		if entity.GetType() == ENEMY && IsCollide(e, entity) {
 			g.RemoveEntity(index)
 		
 			scoreVar := g.globals["score"]
@@ -297,6 +310,7 @@ func (e *ProjectileEntity) Tick(g *Game, d GameDelta) {
 func (e *ProjectileEntity) Draw() (int, int, GameSprite) {
 	return e.coords.Y, e.coords.X, e.sprite
 }
+func (e *ProjectileEntity) GetType() GameEntityType {return PROJECTILE}
 func (e *ProjectileEntity) GetCoords() GameEntityCoordinates {return e.coords}
 func (e *ProjectileEntity) GetHitBox() GameEntityHitBox {
 	return GameEntityHitBox{
@@ -328,24 +342,34 @@ type EnemyEntity struct {
 
 func (e *EnemyEntity) Tick(g *Game, d GameDelta) {
 	e.counter += 1
-	if e.counter < 10 {
-		return
+	if e.counter < 10 { return }
+
+	if rand.Intn(2) == 1 {
+		g.AddEntity(
+			NewEnemyProjectileEntity(
+				e.coords.Y + len(e.sprite) + 1,
+				e.coords.X + len(e.sprite[0]) / 2,
+			),
+		)
 	}
+
 	e.coords.X += e.velocity
 	e.counter = 0
 
 	if e.coords.X >= g.frameBuffer.width - len(e.sprite[0]) {
 		e.velocity = -1
-		e.coords.Y += 1
+		e.coords.Y += len(e.sprite) + 1
 	}
 
 	if e.coords.X <= 0 {
 		e.velocity = 1
+		e.coords.Y += len(e.sprite) + 1
 	}	
 }
 func (e *EnemyEntity) Draw() (int, int, GameSprite) {
 	return e.coords.Y, e.coords.X, e.sprite
 }
+func (e *EnemyEntity) GetType() GameEntityType {return ENEMY}
 func (e *EnemyEntity) GetCoords() GameEntityCoordinates {return e.coords}
 func (e *EnemyEntity) GetHitBox() GameEntityHitBox {
 	return GameEntityHitBox{
@@ -365,11 +389,59 @@ func NewEnemyEntity(y int, x int) *EnemyEntity {
 			[]rune("(000)"),
 			[]rune("/! !\\"),
 		},
-		velocity: 0,
+		velocity: 1,
 		counter: 0,
 	}
 }
 
+
+type EnemyProjectileEntity struct {
+	coords GameEntityCoordinates
+	sprite GameSprite
+}
+
+func (e *EnemyProjectileEntity) Tick(g *Game, d GameDelta) {
+	e.coords.Y += 1
+	
+	for index, entity := range g.entities {
+		if entity.GetType() == PLAYER && IsCollide(e, entity) {
+			// Remove Entity
+			g.RemoveEntity(index)
+		
+			livesVar := g.globals["lives_left"]
+			if livesVar.IntValue != 0 {
+				livesVar.IntValue -= 1
+				g.globals["lives_left"] = livesVar
+				g.AddEntity(entity)
+			}
+
+			break
+		}
+	}
+}
+func (e *EnemyProjectileEntity) Draw() (int, int, GameSprite) {
+	return e.coords.Y, e.coords.X, e.sprite
+}
+func (e *EnemyProjectileEntity) GetType() GameEntityType {return PROJECTILE}
+func (e *EnemyProjectileEntity) GetCoords() GameEntityCoordinates {return e.coords}
+func (e *EnemyProjectileEntity) GetHitBox() GameEntityHitBox {
+	return GameEntityHitBox{
+		Width:1,
+		Height:1,
+	}
+}
+
+func NewEnemyProjectileEntity(y int, x int) *EnemyProjectileEntity {
+	return &EnemyProjectileEntity{
+		coords: GameEntityCoordinates{
+			Y: y,
+			X: x,
+		},
+		sprite: [][]rune{
+			[]rune("$"),
+		},
+	}
+}
 
 
 
@@ -396,6 +468,7 @@ func (e *ScoreBoardEntity) Draw() (int, int, GameSprite) {
 	return e.coords.Y, e.coords.X, e.sprite
 }
 
+func (e *ScoreBoardEntity) GetType() GameEntityType {return GUI}
 func (e *ScoreBoardEntity) GetCoords() GameEntityCoordinates {return e.coords}
 func (e *ScoreBoardEntity) GetHitBox() GameEntityHitBox {
 	return GameEntityHitBox{
